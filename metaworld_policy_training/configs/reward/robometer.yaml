@@ -1,0 +1,28 @@
+# @package _global_
+
+general_training:
+  dense_rewards_at_end: false
+  entropy_term: "auto"
+
+reward_model:
+  name: 'robometer'
+  model_path: 'aliangdw/Robometer-4B'  # HuggingFace model ID or local path
+  batch_size: 1
+  reward_at_every_step: true
+  camera_names: ["image"]
+
+  # use_progress_diff: use reward = P(s') - P(s) instead of P(s)
+  # NOTE: progress_diff only works when reward_at_every_step=true
+  use_progress_diff: false
+
+  success_bonus: 64.0
+  reward_divisor: 1.0
+
+  # Robometer-specific settings
+  max_frames: 4         # max frames Robometer processes per inference
+  use_server: false     # true = call Robometer HTTP server, false = load model locally
+  server_url: 'http://localhost:8000'  # only used when use_server=true
+
+environment:
+  is_state_based: false
+  reward_image_key: 'image'

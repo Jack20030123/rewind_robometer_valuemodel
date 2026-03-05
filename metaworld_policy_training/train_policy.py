@@ -168,6 +168,17 @@ def parse_reward_model(reward_cfg: DictConfig) -> BaseRewardModel:
             model_path=reward_cfg.model_path,
             success_bonus=reward_cfg.success_bonus,
         )
+    elif reward_string == "robometer":
+        from reward_model.robometer_reward_model import RobometerRewardModel
+        reward_model = RobometerRewardModel(
+            model_path=reward_cfg.model_path,
+            batch_size=reward_cfg.batch_size,
+            success_bonus=reward_cfg.success_bonus,
+            reward_at_every_step=reward_cfg.reward_at_every_step,
+            max_frames=reward_cfg.get("max_frames", 4),
+            use_server=reward_cfg.get("use_server", False),
+            server_url=reward_cfg.get("server_url", "http://localhost:8000"),
+        )
     else:
         raise ValueError(f"Unknown reward model: {reward_string}")
 
