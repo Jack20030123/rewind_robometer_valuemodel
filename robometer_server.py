@@ -7,6 +7,7 @@ Used by RobometerRewardModel in server mode (use_server=true).
 
 import io
 import base64
+import threading
 import numpy as np
 import torch
 from fastapi import FastAPI
@@ -27,6 +28,7 @@ EXP_CONFIG = None
 DEVICE = None
 IS_DISCRETE = False
 NUM_BINS = 10
+INFERENCE_LOCK = threading.Lock()
 
 
 @asynccontextmanager
@@ -94,29 +96,30 @@ def predict(req: PredictRequest):
     sample = ProgressSample(trajectory=traj, sample_type="progress")
     batch = BATCH_COLLATOR([sample])
 
-    progress_inputs = batch["progress_inputs"]
-    for key, value in progress_inputs.items():
-        if hasattr(value, "to"):
-            progress_inputs[key] = value.to(DEVICE)
+    with INFERENCE_LOCK:
+        progress_inputs = batch["progress_inputs"]
+        for key, value in progress_inputs.items():
+            if hasattr(value, "to"):
+                progress_inputs[key] = value.to(DEVICE)
 
-    with torch.no_grad():
-        results = compute_batch_outputs(
-            MODEL,
-            TOKENIZER,
-            progress_inputs,
-            sample_type="progress",
-            is_discrete_mode=IS_DISCRETE,
-            num_bins=NUM_BINS,
-        )
+        with torch.no_grad():
+            results = compute_batch_outputs(
+                MODEL,
+                TOKENIZER,
+                progress_inputs,
+                sample_type="progress",
+                is_discrete_mode=IS_DISCRETE,
+                num_bins=NUM_BINS,
+            )
 
-    preds = results.get("progress_pred", [])
-    if preds and len(preds) > 0:
-        progress = [float(p) for p in preds[0]]
-    else:
-        progress = [0.0]
+        preds = results.get("progress_pred", [])
+        if preds and len(preds) > 0:
+            progress = [float(p) for p in preds[0]]
+        else:
+            progress = [0.0]
 
-    if DEVICE == "cuda":
-        torch.cuda.empty_cache()
+        if DEVICE == "cuda":
+            torch.cuda.empty_cache()
 
     return {"progress": progress}
 
