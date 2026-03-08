@@ -207,6 +207,7 @@ def robometer_progress_per_step_server(frames, task_text, server_url, max_frames
 
     F = frames.shape[0]
     progress_values = np.zeros(F, dtype=np.float32)
+    fail_count = 0
 
     for t in range(F):
         sub_frames = frames[: t + 1]
@@ -238,8 +239,14 @@ def robometer_progress_per_step_server(frames, task_text, server_url, max_frames
             else:
                 progress_values[t] = float(progress)
         except Exception as e:
+            fail_count += 1
             print(f"  [WARNING] Server call failed at step {t}: {e}")
             progress_values[t] = 0.0
+            if fail_count >= 10:
+                raise RuntimeError(
+                    f"Robometer server failed {fail_count} times "
+                    f"(last error: {e}). Server may be down."
+                )
 
     return progress_values
 

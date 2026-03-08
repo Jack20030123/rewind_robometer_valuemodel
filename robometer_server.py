@@ -17,7 +17,7 @@ from robometer.utils.setup_utils import setup_batch_collator
 from robometer.data.dataset_types import ProgressSample, Trajectory
 from robometer.evals.eval_server import compute_batch_outputs
 
-app = FastAPI()
+from contextlib import asynccontextmanager
 
 # Global model state
 MODEL = None
@@ -29,14 +29,8 @@ IS_DISCRETE = False
 NUM_BINS = 10
 
 
-class PredictRequest(BaseModel):
-    frames_b64: str
-    task: str
-    sample_type: str = "progress"
-
-
-@app.on_event("startup")
-def load_model():
+@asynccontextmanager
+async def lifespan(app):
     global MODEL, TOKENIZER, BATCH_COLLATOR, EXP_CONFIG, DEVICE, IS_DISCRETE, NUM_BINS
 
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -65,6 +59,16 @@ def load_model():
     )
 
     print(f"[RobometerServer] Model loaded. discrete={IS_DISCRETE}, bins={NUM_BINS}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+class PredictRequest(BaseModel):
+    frames_b64: str
+    task: str
+    sample_type: str = "progress"
 
 
 @app.get("/health")
@@ -110,6 +114,9 @@ def predict(req: PredictRequest):
         progress = [float(p) for p in preds[0]]
     else:
         progress = [0.0]
+
+    if DEVICE == "cuda":
+        torch.cuda.empty_cache()
 
     return {"progress": progress}
 
