@@ -85,9 +85,9 @@ environment_to_instruction = {
 
 # -- Task descriptions for example_videos (not MetaWorld envs) --
 EXAMPLE_VIDEO_TASKS = {
-    "berkeley_rpt_stack_cup": "stack the cup",
+    "berkeley_rpt_stack_cup": "Pick up the yellow cup and stack it on the other cup",
     "jaco_play_pick_up_green_cup": "pick up the green cup",
-    "soar_put_green_stick_in_brown_bowl": "put the green stick in the brown bowl",
+    "soar_put_green_stick_in_brown_bowl": "Put green stick in brown bowl",
 }
 
 
