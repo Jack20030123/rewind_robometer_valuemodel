@@ -152,15 +152,16 @@ def score_trajectory_server(server_url, raw_images, task_text, max_frames=16):
     return progress_full
 
 
-def generate_video(images, progress_raw, progress_diff, video_path, title, fps=10):
-    """Generate 1x3 MP4: left=video, middle=raw progress, right=diff progress."""
-    diff_padded = np.concatenate([[0.0], progress_diff])
+def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, video_path, title, fps=10):
+    """Generate 2x2 MP4: top-left=video, top-right=raw progress, bottom-left=0.99 diff, bottom-right=0.999 diff."""
+    diff_099_padded = np.concatenate([[0.0], progress_diff_099])
+    diff_0999_padded = np.concatenate([[0.0], progress_diff_0999])
     num_frames = len(images)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
 
-    # Left: video frames
-    ax_img = axes[0]
+    # Top-left: video frames
+    ax_img = axes[0, 0]
     im = ax_img.imshow(images[0])
     ax_img.set_title("Video", fontsize=12)
     ax_img.axis("off")
@@ -170,8 +171,8 @@ def generate_video(images, progress_raw, progress_diff, video_path, title, fps=1
         bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
     )
 
-    # Middle: raw progress
-    ax_raw = axes[1]
+    # Top-right: raw progress
+    ax_raw = axes[0, 1]
     (line_raw,) = ax_raw.plot([], [], "b-", linewidth=2)
     ax_raw.set_xlim(0, num_frames)
     margin = max(0.05, (np.max(progress_raw) - np.min(progress_raw)) * 0.1)
@@ -182,39 +183,56 @@ def generate_video(images, progress_raw, progress_diff, video_path, title, fps=1
     ax_raw.grid(True, alpha=0.3)
     (dot_raw,) = ax_raw.plot([], [], "bo", markersize=5)
 
-    # Right: diff progress
-    ax_diff = axes[2]
-    (line_diff,) = ax_diff.plot([], [], "m-", linewidth=2)
-    ax_diff.set_xlim(0, num_frames)
-    d_margin = max(0.01, (np.max(diff_padded) - np.min(diff_padded)) * 0.15)
-    ax_diff.set_ylim(np.min(diff_padded) - d_margin, np.max(diff_padded) + d_margin)
-    ax_diff.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
-    ax_diff.set_xlabel("Step")
-    ax_diff.set_ylabel("Diff")
-    ax_diff.set_title("Diff Progress (Robometer)", fontsize=12)
-    ax_diff.grid(True, alpha=0.3)
-    (dot_diff,) = ax_diff.plot([], [], "mo", markersize=5)
+    # Bottom-left: 0.99 diff
+    ax_d099 = axes[1, 0]
+    (line_d099,) = ax_d099.plot([], [], "m-", linewidth=2)
+    ax_d099.set_xlim(0, num_frames)
+    d099_margin = max(0.01, (np.max(diff_099_padded) - np.min(diff_099_padded)) * 0.15)
+    ax_d099.set_ylim(np.min(diff_099_padded) - d099_margin, np.max(diff_099_padded) + d099_margin)
+    ax_d099.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+    ax_d099.set_xlabel("Step")
+    ax_d099.set_ylabel("Diff")
+    ax_d099.set_title("0.99·P(s') - P(s)", fontsize=12)
+    ax_d099.grid(True, alpha=0.3)
+    (dot_d099,) = ax_d099.plot([], [], "mo", markersize=5)
+
+    # Bottom-right: 0.999 diff
+    ax_d0999 = axes[1, 1]
+    (line_d0999,) = ax_d0999.plot([], [], "g-", linewidth=2)
+    ax_d0999.set_xlim(0, num_frames)
+    d0999_margin = max(0.01, (np.max(diff_0999_padded) - np.min(diff_0999_padded)) * 0.15)
+    ax_d0999.set_ylim(np.min(diff_0999_padded) - d0999_margin, np.max(diff_0999_padded) + d0999_margin)
+    ax_d0999.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+    ax_d0999.set_xlabel("Step")
+    ax_d0999.set_ylabel("Diff")
+    ax_d0999.set_title("0.999·P(s') - P(s)", fontsize=12)
+    ax_d0999.grid(True, alpha=0.3)
+    (dot_d0999,) = ax_d0999.plot([], [], "go", markersize=5)
 
     plt.suptitle(title, fontsize=13)
     plt.tight_layout()
 
     def init():
         line_raw.set_data([], [])
-        line_diff.set_data([], [])
+        line_d099.set_data([], [])
+        line_d0999.set_data([], [])
         dot_raw.set_data([], [])
-        dot_diff.set_data([], [])
+        dot_d099.set_data([], [])
+        dot_d0999.set_data([], [])
         step_text.set_text("")
-        return line_raw, line_diff, dot_raw, dot_diff, step_text, im
+        return line_raw, line_d099, line_d0999, dot_raw, dot_d099, dot_d0999, step_text, im
 
     def animate(frame):
         im.set_array(images[frame])
         step_text.set_text(f"Step: {frame}/{num_frames - 1}")
         x = np.arange(frame + 1)
         line_raw.set_data(x, progress_raw[: frame + 1])
-        line_diff.set_data(x, diff_padded[: frame + 1])
+        line_d099.set_data(x, diff_099_padded[: frame + 1])
+        line_d0999.set_data(x, diff_0999_padded[: frame + 1])
         dot_raw.set_data([frame], [progress_raw[frame]])
-        dot_diff.set_data([frame], [diff_padded[frame]])
-        return line_raw, line_diff, dot_raw, dot_diff, step_text, im
+        dot_d099.set_data([frame], [diff_099_padded[frame]])
+        dot_d0999.set_data([frame], [diff_0999_padded[frame]])
+        return line_raw, line_d099, line_d0999, dot_raw, dot_d099, dot_d0999, step_text, im
 
     anim = FuncAnimation(fig, animate, init_func=init, frames=num_frames, interval=50, blit=True)
     writer = FFMpegWriter(fps=fps, bitrate=2400)
@@ -339,7 +357,8 @@ def main():
             print(f"  ERROR scoring: {e}")
             continue
 
-        progress_diff = np.diff(progress_raw)
+        progress_diff_099 = 0.99 * progress_raw[1:] - progress_raw[:-1]
+        progress_diff_0999 = 0.999 * progress_raw[1:] - progress_raw[:-1]
 
         # Output path
         out_dir = os.path.join(args.output_dir, rel_category)
@@ -347,7 +366,7 @@ def main():
         out_path = os.path.join(out_dir, f"{video_name}_scored.mp4")
 
         title = f"{rel_category}/{video_name} [Robometer]"
-        generate_video(raw_images, progress_raw, progress_diff, out_path, title, fps=args.fps)
+        generate_video(raw_images, progress_raw, progress_diff_099, progress_diff_0999, out_path, title, fps=args.fps)
         print(f"  -> {out_path}  ({num_frames} frames, progress [{progress_raw.min():.3f}, {progress_raw.max():.3f}])")
 
     print("\nDone!")
