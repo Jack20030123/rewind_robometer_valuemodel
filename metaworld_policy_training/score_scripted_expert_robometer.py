@@ -217,17 +217,17 @@ def write_correlation_report(path, env_id, results, success, success_step, num_f
 
 # ── Video generation ──
 
-def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, gt_rewards,
+def generate_video(images, progress_raw, progress_diff, progress_diff_099, progress_diff_0999, gt_rewards,
                    video_path, env_id, success_step, fps=20):
-    from matplotlib.gridspec import GridSpec
+    diff_padded = np.concatenate([[0.0], progress_diff])
     diff_099_padded = np.concatenate([[0.0], progress_diff_099])
     diff_0999_padded = np.concatenate([[0.0], progress_diff_0999])
     num_frames = len(images)
 
-    fig = plt.figure(figsize=(18, 10))
-    gs = GridSpec(2, 6, figure=fig, hspace=0.35, wspace=0.4)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
-    ax_img = fig.add_subplot(gs[0, :3])
+    # Top-left: env
+    ax_img = axes[0, 0]
     im = ax_img.imshow(images[0])
     ax_img.set_title("Environment (Scripted Expert)", fontsize=12)
     ax_img.axis("off")
@@ -237,7 +237,8 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
         bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
     )
 
-    ax_raw = fig.add_subplot(gs[0, 3:])
+    # Top-middle: raw progress
+    ax_raw = axes[0, 1]
     (line_raw,) = ax_raw.plot([], [], "b-", linewidth=2)
     ax_raw.set_xlim(0, num_frames)
     margin = max(0.05, (np.max(progress_raw) - np.min(progress_raw)) * 0.1)
@@ -248,7 +249,21 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
     ax_raw.grid(True, alpha=0.3)
     (dot_raw,) = ax_raw.plot([], [], "bo", markersize=5)
 
-    ax_d099 = fig.add_subplot(gs[1, :2])
+    # Top-right: plain diff
+    ax_diff = axes[0, 2]
+    (line_diff,) = ax_diff.plot([], [], "c-", linewidth=2)
+    ax_diff.set_xlim(0, num_frames)
+    d_margin = max(0.01, (np.max(diff_padded) - np.min(diff_padded)) * 0.15)
+    ax_diff.set_ylim(np.min(diff_padded) - d_margin, np.max(diff_padded) + d_margin)
+    ax_diff.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+    ax_diff.set_xlabel("Step")
+    ax_diff.set_ylabel("Diff")
+    ax_diff.set_title("P(s') - P(s)", fontsize=12)
+    ax_diff.grid(True, alpha=0.3)
+    (dot_diff,) = ax_diff.plot([], [], "co", markersize=5)
+
+    # Bottom-left: 0.99 diff
+    ax_d099 = axes[1, 0]
     (line_d099,) = ax_d099.plot([], [], "m-", linewidth=2)
     ax_d099.set_xlim(0, num_frames)
     d099_margin = max(0.01, (np.max(diff_099_padded) - np.min(diff_099_padded)) * 0.15)
@@ -256,11 +271,12 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
     ax_d099.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
     ax_d099.set_xlabel("Step")
     ax_d099.set_ylabel("Diff")
-    ax_d099.set_title("0.99·P(s') - P(s)", fontsize=12)
+    ax_d099.set_title("100·(0.99·P(s') - P(s))", fontsize=12)
     ax_d099.grid(True, alpha=0.3)
     (dot_d099,) = ax_d099.plot([], [], "mo", markersize=5)
 
-    ax_gt = fig.add_subplot(gs[1, 2:4])
+    # Bottom-middle: GT reward
+    ax_gt = axes[1, 1]
     (line_gt,) = ax_gt.plot([], [], "r-", linewidth=2)
     ax_gt.set_xlim(0, num_frames)
     g_margin = max(0.1, (np.max(gt_rewards) - np.min(gt_rewards)) * 0.1)
@@ -271,7 +287,8 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
     ax_gt.grid(True, alpha=0.3)
     (dot_gt,) = ax_gt.plot([], [], "ro", markersize=5)
 
-    ax_d0999 = fig.add_subplot(gs[1, 4:])
+    # Bottom-right: 0.999 diff
+    ax_d0999 = axes[1, 2]
     (line_d0999,) = ax_d0999.plot([], [], "g-", linewidth=2)
     ax_d0999.set_xlim(0, num_frames)
     d0999_margin = max(0.01, (np.max(diff_0999_padded) - np.min(diff_0999_padded)) * 0.15)
@@ -279,19 +296,20 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
     ax_d0999.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
     ax_d0999.set_xlabel("Step")
     ax_d0999.set_ylabel("Diff")
-    ax_d0999.set_title("0.999·P(s') - P(s)", fontsize=12)
+    ax_d0999.set_title("1000·(0.999·P(s') - P(s))", fontsize=12)
     ax_d0999.grid(True, alpha=0.3)
     (dot_d0999,) = ax_d0999.plot([], [], "go", markersize=5)
 
     plt.suptitle(f"Scripted Expert Trajectory Analysis (Robometer) - {env_id}", fontsize=14)
+    plt.tight_layout()
 
     def init():
-        for ln in [line_raw, line_d099, line_gt, line_d0999]:
+        for ln in [line_raw, line_diff, line_d099, line_gt, line_d0999]:
             ln.set_data([], [])
-        for d in [dot_raw, dot_d099, dot_gt, dot_d0999]:
+        for d in [dot_raw, dot_diff, dot_d099, dot_gt, dot_d0999]:
             d.set_data([], [])
         step_text.set_text("")
-        return line_raw, line_d099, line_gt, line_d0999, dot_raw, dot_d099, dot_gt, dot_d0999, step_text, im
+        return line_raw, line_diff, line_d099, line_gt, line_d0999, dot_raw, dot_diff, dot_d099, dot_gt, dot_d0999, step_text, im
 
     def animate(frame):
         im.set_array(images[frame])
@@ -299,14 +317,16 @@ def generate_video(images, progress_raw, progress_diff_099, progress_diff_0999, 
         step_text.set_text(f"Step: {frame}/{num_frames - 1}{status}")
         x = np.arange(frame + 1)
         line_raw.set_data(x, progress_raw[: frame + 1])
+        line_diff.set_data(x, diff_padded[: frame + 1])
         line_d099.set_data(x, diff_099_padded[: frame + 1])
         line_gt.set_data(x, gt_rewards[: frame + 1])
         line_d0999.set_data(x, diff_0999_padded[: frame + 1])
         dot_raw.set_data([frame], [progress_raw[frame]])
+        dot_diff.set_data([frame], [diff_padded[frame]])
         dot_d099.set_data([frame], [diff_099_padded[frame]])
         dot_gt.set_data([frame], [gt_rewards[frame]])
         dot_d0999.set_data([frame], [diff_0999_padded[frame]])
-        return line_raw, line_d099, line_gt, line_d0999, dot_raw, dot_d099, dot_gt, dot_d0999, step_text, im
+        return line_raw, line_diff, line_d099, line_gt, line_d0999, dot_raw, dot_diff, dot_d099, dot_gt, dot_d0999, step_text, im
 
     anim = FuncAnimation(fig, animate, init_func=init, frames=num_frames, interval=50, blit=True)
     writer = FFMpegWriter(fps=fps, bitrate=2400)
@@ -337,8 +357,9 @@ def score_one_env(env_id, server_url, max_frames, seed, output_dir, fps):
     progress_raw = score_trajectory_server(
         server_url, raw_images, text_instruction, max_frames=max_frames,
     )
-    progress_diff_099 = 0.99 * progress_raw[1:] - progress_raw[:-1]
-    progress_diff_0999 = 0.999 * progress_raw[1:] - progress_raw[:-1]
+    progress_diff = progress_raw[1:] - progress_raw[:-1]
+    progress_diff_099 = 100 * (0.99 * progress_raw[1:] - progress_raw[:-1])
+    progress_diff_0999 = 1000 * (0.999 * progress_raw[1:] - progress_raw[:-1])
 
     print(f"  progress_raw length: {len(progress_raw)}, gt_rewards length: {len(gt_rewards)}")
 
@@ -349,31 +370,39 @@ def score_one_env(env_id, server_url, max_frames, seed, output_dir, fps):
         progress_raw, gt_rewards, "Raw Progress", "GT Reward"))
 
     results.append(compute_correlations(
-        progress_diff_099, gt_rewards[1:], "0.99 Diff Progress", "GT Reward"))
+        progress_diff, gt_rewards[1:], "Diff Progress", "GT Reward"))
 
     results.append(compute_correlations(
-        progress_diff_0999, gt_rewards[1:], "0.999 Diff Progress", "GT Reward"))
+        progress_diff_099, gt_rewards[1:], "100*(0.99 Diff Progress)", "GT Reward"))
+
+    results.append(compute_correlations(
+        progress_diff_0999, gt_rewards[1:], "1000*(0.999 Diff Progress)", "GT Reward"))
 
     n30 = min(30, num_frames)
     results.append(compute_correlations(
         progress_raw[:n30], gt_rewards[:n30], "Raw Progress (first 30)", "GT Reward (first 30)"))
 
-    n30d = min(30, len(progress_diff_099))
+    n30d = min(30, len(progress_diff))
     results.append(compute_correlations(
-        progress_diff_099[:n30d], gt_rewards[1:n30d + 1], "0.99 Diff Progress (first 30)", "GT Reward (first 30)"))
+        progress_diff[:n30d], gt_rewards[1:n30d + 1], "Diff Progress (first 30)", "GT Reward (first 30)"))
     results.append(compute_correlations(
-        progress_diff_0999[:n30d], gt_rewards[1:n30d + 1], "0.999 Diff Progress (first 30)", "GT Reward (first 30)"))
+        progress_diff_099[:n30d], gt_rewards[1:n30d + 1], "100*(0.99 Diff Progress) (first 30)", "GT Reward (first 30)"))
+    results.append(compute_correlations(
+        progress_diff_0999[:n30d], gt_rewards[1:n30d + 1], "1000*(0.999 Diff Progress) (first 30)", "GT Reward (first 30)"))
 
     if success_step is not None and success_step > 2:
         results.append(compute_correlations(
             progress_raw[:success_step + 1], gt_rewards[:success_step + 1],
             "Raw Progress (pre-success)", "GT Reward (pre-success)"))
         results.append(compute_correlations(
+            progress_diff[:success_step], gt_rewards[1:success_step + 1],
+            "Diff Progress (pre-success)", "GT Reward (pre-success)"))
+        results.append(compute_correlations(
             progress_diff_099[:success_step], gt_rewards[1:success_step + 1],
-            "0.99 Diff Progress (pre-success)", "GT Reward (pre-success)"))
+            "100*(0.99 Diff Progress) (pre-success)", "GT Reward (pre-success)"))
         results.append(compute_correlations(
             progress_diff_0999[:success_step], gt_rewards[1:success_step + 1],
-            "0.999 Diff Progress (pre-success)", "GT Reward (pre-success)"))
+            "1000*(0.999 Diff Progress) (pre-success)", "GT Reward (pre-success)"))
 
     for r in results:
         print(f"    {r['label']} (n={r['n']}): Pearson={r['pearson']:.4f}, Spearman={r['spearman']:.4f}")
@@ -383,7 +412,7 @@ def score_one_env(env_id, server_url, max_frames, seed, output_dir, fps):
 
     print("  Generating video...")
     video_path = os.path.join(env_output_dir, "trajectory_analysis.mp4")
-    generate_video(raw_images, progress_raw, progress_diff_099, progress_diff_0999, gt_rewards,
+    generate_video(raw_images, progress_raw, progress_diff, progress_diff_099, progress_diff_0999, gt_rewards,
                    video_path, env_id, success_step, fps=fps)
 
     print(f"  Done: {env_id}")
