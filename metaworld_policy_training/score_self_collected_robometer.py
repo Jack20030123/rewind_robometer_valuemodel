@@ -152,6 +152,17 @@ def score_trajectory_server(server_url, raw_images, task_text, max_frames=16):
     return progress_full
 
 
+def save_step_data_csv(csv_path, reward_hat, reward_hat_diff_padded, diff099_padded, diff0999_padded):
+    with open(csv_path, "w") as f:
+        f.write("step,reward_hat,reward_hat_diff_padded,diff099_padded,diff0999_padded\n")
+        for i in range(len(reward_hat)):
+            f.write(
+                f"{i},{reward_hat[i]:.6f},{reward_hat_diff_padded[i]:.6f},"
+                f"{diff099_padded[i]:.6f},{diff0999_padded[i]:.6f}\n"
+            )
+
+
+
 def generate_video(images, progress_raw, progress_diff, progress_diff_099, progress_diff_0999, video_path, title, fps=10):
     """Generate top-2/bottom-3 MP4: top(video, raw), bottom(0.99 diff, plain diff, 0.999 diff)."""
     from matplotlib.gridspec import GridSpec
@@ -379,15 +390,22 @@ def main():
         progress_diff = progress_raw[1:] - progress_raw[:-1]
         progress_diff_099 = 100 * (0.99 * progress_raw[1:] - progress_raw[:-1])
         progress_diff_0999 = 1000 * (0.999 * progress_raw[1:] - progress_raw[:-1])
+        reward_hat_diff_padded = np.concatenate([[0.0], progress_diff])
+        diff099_padded = np.concatenate([[0.0], progress_diff_099])
+        diff0999_padded = np.concatenate([[0.0], progress_diff_0999])
 
         # Output path
         out_dir = os.path.join(args.output_dir, rel_category)
         os.makedirs(out_dir, exist_ok=True)
         out_path = os.path.join(out_dir, f"{video_name}_scored.mp4")
+        csv_path = os.path.join(out_dir, f"{video_name}_step_data.csv")
+
+        save_step_data_csv(csv_path, progress_raw, reward_hat_diff_padded, diff099_padded, diff0999_padded)
 
         title = f"{rel_category}/{video_name} [Robometer]"
         generate_video(raw_images, progress_raw, progress_diff, progress_diff_099, progress_diff_0999, out_path, title, fps=args.fps)
         print(f"  -> {out_path}  ({num_frames} frames, progress [{progress_raw.min():.3f}, {progress_raw.max():.3f}])")
+        print(f"  -> {csv_path}")
 
     print("\nDone!")
 
